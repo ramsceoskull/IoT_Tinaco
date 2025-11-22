@@ -5,7 +5,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import render
 
 import requests
-from .ml_utils import predict_next_consumption_from_df
+from render.ml.ml_utils import predict_next_consumption
 
 API_BASE = "https://iottinaco.onrender.com"  
 DEVICE_ID = "TNR-01"
