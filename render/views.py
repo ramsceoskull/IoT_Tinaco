@@ -4,6 +4,12 @@ import requests
 from django.core.paginator import Paginator
 from django.shortcuts import render
 
+import pandas as pd
+import requests
+from .ml_utils import predict_next_consumption_from_df
+
+API_BASE = "https://iottinaco.onrender.com"  
+DEVICE_ID = "TNR-01"
 
 # Create your views here.
 def index(request):
@@ -37,3 +43,20 @@ def readings_chart(request):
 	data_json = json.dumps(data)
 
 	return render(request, "render/readings_chart.html", {"readings_json": data_json})
+
+def predict_view(request):
+    prediction = None
+
+    # Obtener últimos datos desde tu API FastAPI
+    api_url = "https://iottinaco.onrender.com/readings/latest"
+    try:
+        data = requests.get(api_url).json()
+        flow = data.get("flow_lpm", 0)
+        temp = data.get("waterTempC", 0)
+        humidity = data.get("humidity_pct", 0)
+        last_liters = data.get("litros_intervalo", 0)   # si lo agregan en API
+        prediction = predict_consumption(flow, temp, humidity, last_liters)
+    except:
+        prediction = "Error obteniendo datos."
+
+    return render(request, "predict.html", {"prediction": prediction})

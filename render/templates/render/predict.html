@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Predicción ML — Consumo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f5f5f5; --card:#fff; --primary:#007bff; --text:#222; --muted:#666;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin:0; padding:20px;
+      display:flex; min-height:100dvh; flex-direction:column; gap:16px;
+    }
+    header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    }
+    header h1{ margin:0; font-size:clamp(20px, 2.5vw, 28px); }
+    nav a{
+      display:inline-block; text-decoration:none; background:var(--primary); color:#fff;
+      padding:10px 14px; border-radius:8px; font-weight:600; font-size:clamp(14px, 2vw, 16px);
+    }
+    .wrap{
+      max-width: 960px; width:100%; margin: 0 auto; display:grid; gap:16px;
+    }
+    .card{
+      background:var(--card); border:1px solid #e5e5e5; border-radius:12px; padding:16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .title{ font-size:clamp(18px, 2.2vw, 22px); margin: 0 0 8px; }
+    .subtitle{ color:var(--muted); margin:0 0 16px; font-size:clamp(13px, 1.7vw, 15px); }
+
+    .kpi{
+      display:grid; grid-template-columns: 1fr; gap:12px; align-items:center; text-align:center;
+    }
+    .kpi .value{
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 800; line-height:1;
+    }
+    .kpi .unit{ font-size:clamp(14px, 2vw, 16px); color:var(--muted); }
+
+    .meta{
+      display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px;
+    }
+    .pill{
+      background:#f0f4ff; color:#1a3c8a; border:1px solid #d9e4ff;
+      text-align:center; padding:10px; border-radius:10px; font-size:clamp(12px, 1.8vw, 14px);
+    }
+
+    .actions{
+      display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:14px;
+    }
+    .btn{
+      appearance:none; border:none; cursor:pointer;
+      padding:10px 14px; border-radius:8px; font-weight:700;
+      background:var(--primary); color:#fff; font-size:clamp(14px, 2vw, 16px);
+    }
+    .btn.secondary{ background:#e9ecef; color:#222; }
+
+    .error{
+      color:#b00020; background:#fde7ea; border:1px solid #f6c9cf; padding:12px; border-radius:10px;
+      font-size:clamp(14px, 2vw, 16px);
+    }
+
+    footer{ color:var(--muted); font-size:12px; text-align:center; margin-top:auto; }
+
+    /* Responsivo */
+    @media (max-width:640px){
+      .meta{ grid-template-columns: 1fr; }
+      header{ justify-content:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <h1>🔮 Predicción de consumo (próximo intervalo)</h1>
+    <nav>
+      <a href="/">← Volver a lecturas</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2 class="title">Resultado del modelo TFLite</h2>
+      <p class="subtitle">Estimación basada en las últimas lecturas de flujo, temperatura, humedad y consumo previo.</p>
+
+      {% if error %}
+        <div class="error">Error: {{ error }}</div>
+      {% else %}
+        <div class="kpi">
+          <div class="value">{{ pred_litros|default:"—" }}</div>
+          <div class="unit">litros (próximo intervalo)</div>
+        </div>
+
+        <div class="meta">
+          <div class="pill">Muestras usadas: <strong>{{ samples|default:"0" }}</strong></div>
+          <div class="pill">Modelo: <strong>Feedforward (TFLite)</strong></div>
+          <div class="pill">Lookback: <strong>3 muestras</strong></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" onclick="location.reload()">Actualizar</button>
+          <a class="btn secondary" href="/readings/">Ver gráfica histórica</a>
+        </div>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer>
+    Actualiza automáticamente cada 15 s para captar nuevas lecturas.
+  </footer>
+
+  <script>
+    // Autorefresco suave cada 15 s
+    setInterval(() => {
+      fetch(window.location.href, {cache: "no-store"})
+        .then(r => r.text())
+        .then(html => {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const fresh = doc.querySelector("main").innerHTML;
+          document.querySelector("main").innerHTML = fresh;
+        })
+        .catch(()=>{ /* silencioso */ });
+    }, 15000);
+  </script>
+</body>
+</html>
