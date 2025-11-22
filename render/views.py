@@ -46,14 +46,27 @@ def readings_chart(request):
 
 def predict_view(request):
     prediction = None
+
     try:
-        data = requests.get("https://iottinaco.onrender.com/readings/latest").json()
-        flow = data.get("flow_lpm", 0)
-        temp = data.get("water_temp_c", 0)
-        humidity = data.get("humidity_pct", 0)
-        last_liters = data.get("litros_intervalo", 0)
+        # Obtener TODAS las lecturas
+        data = requests.get("https://iottinaco.onrender.com/readings/all").json()
+
+        if not data:
+            raise ValueError("No hay datos disponibles")
+
+        # Tomar el último registro
+        latest = data[-1]
+
+        flow = latest.get("flow_lpm", 0)
+        temp = latest.get("water_temp_c", 0)
+        humidity = latest.get("humidity_pct", 0)
+
+        # Si no existe litros, lo calculamos rápido
+        last_liters = flow * 1  # 1 minuto aprox (placeholder)
+
         prediction = predict_next_consumption_from_df(flow, temp, humidity, last_liters)
+
     except Exception as e:
-        prediction = f"Error: {e}"
+        prediction = f"Error durante predicción: {e}"
 
     return render(request, "render/predict.html", {"prediction": prediction})
