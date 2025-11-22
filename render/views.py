@@ -45,43 +45,15 @@ def readings_chart(request):
 	return render(request, "render/readings_chart.html", {"readings_json": data_json})
 
 def predict_view(request):
-    """
-    Construye un DataFrame con las últimas lecturas y llama al modelo TFLite
-    vía predict_next_consumption_from_df(df). Muestra el próximo consumo estimado.
-    """
-    url = f"{API_BASE}/readings/all?device_id={DEVICE_ID}&limit=60&sort=asc"
-    pred_liters = None
-    msg = None
-
+    prediction = None
     try:
-        rows = requests.get(url, timeout=10).json()
-        if not rows:
-            msg = "No hay datos suficientes."
-        else:
-            df = pd.DataFrame(rows)
-
-            # Normaliza tipos y calcula litros del intervalo (si no tienes flow_lpm, puedes
-            # comentar este bloque y usar la alternativa con delta de nivel)
-            df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
-            for c in ["flow_lpm", "water_temp_c", "humidity_pct", "level_pct"]:
-                if c in df.columns:
-                    df[c] = pd.to_numeric(df[c], errors="coerce")
-
-            # A) consumo desde flujo (preferido)
-            if "flow_lpm" in df.columns:
-                df["dt_min"] = df["ts"].diff().dt.total_seconds().div(60).fillna(0)
-                df["dt_min"] = df["dt_min"].clip(lower=0, upper=60)
-                df["litros"] = df["flow_lpm"].fillna(0) * df["dt_min"]
-            else:
-                # B) alternativa por cambio de nivel (ajusta V_TINACO)
-                V_TINACO = 3000.0
-                df["litros"] = (-(df["level_pct"].diff().fillna(0))/100.0) * V_TINACO
-                df["litros"] = df["litros"].clip(lower=0)
-
-            pred_liters = predict_next_consumption_from_df(df)  # <- usa tu util TFLite
-
+        data = requests.get("https://iottinaco.onrender.com/readings/latest").json()
+        flow = data.get("flow_lpm", 0)
+        temp = data.get("water_temp_c", 0)
+        humidity = data.get("humidity_pct", 0)
+        last_liters = data.get("litros_intervalo", 0)
+        prediction = predict_next_consumption_from_df(flow, temp, humidity, last_liters)
     except Exception as e:
-        msg = f"Error obteniendo o procesando datos: {e}"
+        prediction = f"Error: {e}"
 
-    context = {"prediction": pred_liters, "message": msg}
-    return render(request, "render/predict.html", context)
+    return render(request, "render/predict.html", {"prediction": prediction})
