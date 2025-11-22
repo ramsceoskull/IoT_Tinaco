@@ -4,7 +4,6 @@ import requests
 from django.core.paginator import Paginator
 from django.shortcuts import render
 
-import pandas as pd
 import requests
 from .ml_utils import predict_next_consumption_from_df
 
