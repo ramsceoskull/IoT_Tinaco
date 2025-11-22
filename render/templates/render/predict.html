@@ -15,19 +15,18 @@
 </head>
 <body>
   <div class="card">
-    <h1>🔮 Predicción de consumo (próximo intervalo)</h1>
+    <h3>🔮 Predicción de consumo (próximo intervalo)</h3>
 
-    {% if message %}
-      <p>{{ message }}</p>
-    {% endif %}
+    <p style="font-size: 35px; font-weight: bold; color:#007bff;">
+        {% if prediction %}
+            {{ prediction }} L
+        {% else %}
+            Calculando...
+        {% endif %}
+    </p>
 
-    {% if prediction %}
-      <p class="big">{{ prediction|floatformat:2 }} L</p>
-    {% else %}
-      <p class="big">–</p>
-    {% endif %}
+    <a href="/" class="btn">⬅ Volver</a>
+</div>
 
-    <a class="btn" href="/">⬅️ Volver</a>
-  </div>
 </body>
 </html>

@@ -45,27 +45,23 @@ def readings_chart(request):
 
 def predict_view(request):
     prediction = None
-
     try:
-        # Obtener TODAS las lecturas
-        data = requests.get("https://iottinaco.onrender.com/readings/all").json()
+        # Obtener todas las lecturas
+        url = "https://iottinaco.onrender.com/readings/all"
+        data = requests.get(url).json()
 
-        if not data:
-            raise ValueError("No hay datos disponibles")
+        if not data or len(data) < 3:
+            prediction = "No hay suficientes datos para predecir"
+        else:
+            # Tomar las últimas 3
+            df = pd.DataFrame(data)
+            df = df.tail(3)
 
-        # Tomar el último registro
-        latest = data[-1]
-
-        flow = latest.get("flow_lpm", 0)
-        temp = latest.get("water_temp_c", 0)
-        humidity = latest.get("humidity_pct", 0)
-
-        # Si no existe litros, lo calculamos rápido
-        last_liters = flow * 1  # 1 minuto aprox (placeholder)
-
-        prediction = predict_next_consumption_from_df(flow, temp, humidity, last_liters)
+            prediction = predict_next_consumption_from_df(df)
 
     except Exception as e:
-        prediction = f"Error durante predicción: {e}"
+        prediction = f"Error: {e}"
 
-    return render(request, "render/predict.html", {"prediction": prediction})
+    return render(request, "render/predict.html", {
+        "prediction": prediction
+    })
