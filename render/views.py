@@ -36,34 +36,28 @@ def _iso_to_dt(s: str):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 def predict_view(request):
-    """
-    Toma las últimas 2 lecturas para estimar 'last_liters' con flow_lpm*Δt
-    y predice el consumo del siguiente intervalo con el modelo TFLite.
-    """
+    prediction = None
     try:
-        # Trae 2 últimas lecturas (ajusta si tu API usa otro parámetro)
-        resp = requests.get(f"{API_BASE}/readings?limit=2", timeout=10)
-        resp.raise_for_status()
-        rows = resp.json()
-        if not rows:
-            raise RuntimeError("No hay lecturas disponibles.")
+        # 1) OBTENER TODAS LAS LECTURAS EXISTENTES
+        url = "https://iottinaco.onrender.com/readings/all"
+        data = requests.get(url).json()
 
-        # Lectura más reciente
-        r0 = rows[0]
-        flow = float(r0.get("flow_lpm", 0) or 0)
-        temp = float(r0.get("water_temp_c", 0) or 0)
-        hum  = float(r0.get("humidity_pct", 0) or 0)
+        # 2) Convertir a DataFrame
+        df = pd.DataFrame(data)
 
-        # Estima litros del último intervalo (si hay dos timestamps)
-        last_liters = 0.0
-        if len(rows) >= 2 and r0.get("ts") and rows[1].get("ts"):
-            t0 = _iso_to_dt(r0["ts"])
-            t1 = _iso_to_dt(rows[1]["ts"])
-            dt_min = max(0.0, min(60.0, (t0 - t1).total_seconds() / 60.0))
-            last_liters = flow * dt_min
+        # 3) Mantener solo columnas necesarias
+        cols = ["ts", "flow_lpm", "water_temp_c", "humidity_pct"]
+        for c in cols:
+            if c not in df.columns:
+                df[c] = 0
 
-        pred_liters = predict_next_consumption(flow, temp, hum, last_liters)
-        return render(request, "render/predict.html", {"prediction": f"{pred_liters:.2f} L"})
+        # 4) Quedarse con las ÚLTIMAS 3 lecturas
+        df = df.tail(3)
+
+        # 5) Enviar al predictor
+        prediction = predict_next_consumption_from_df(df)
 
     except Exception as e:
-        return render(request, "render/predict.html", {"prediction": f"Error: {e} L"})
+        prediction = f"Error: {e}"
+
+    return render(request, "render/predict.html", {"prediction": prediction})
