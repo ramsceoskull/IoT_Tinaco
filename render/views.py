@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import requests
 from django.core.paginator import Paginator
 from django.shortcuts import render
-
+import pandas as pd
 from .ml.ml_utils import predict_next_consumption  # <- usa el TFLite
 
 API_BASE = "https://iottinaco.onrender.com"
