@@ -35,26 +35,64 @@ def _iso_to_dt(s: str):
     
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
+
 def predict_view(request):
+    """
+    Obtiene lecturas de /readings/all, toma las últimas 3 y calcula
+    el consumo del próximo intervalo con el modelo TFLite.
+    """
     try:
-        # Obtener los últimos datos reales
-        data = requests.get("https://iottinaco.onrender.com/readings?limit=1").json()
+        # 1) Traer TODO y filtrar aquí (evita el 422 del ?limit=2)
+        resp = requests.get(f"{API_BASE}/readings/all", timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, list) or len(data) < 3:
+            raise ValueError("La API no devolvió datos suficientes (>=3).")
 
-        if not isinstance(data, list) or len(data) == 0:
-            raise ValueError("La API no devolvió datos válidos")
+        # 2) DataFrame y limpieza mínima
+        df = pd.DataFrame(data)
+        if "ts" not in df.columns:
+            raise ValueError("La API no devolvió la columna 'ts'.")
 
-        last = data[0]
+        df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True)
+        df = df.dropna(subset=["ts"]).sort_values("ts")
 
-        flow = float(last.get("flow_lpm", 0))
-        temp = float(last.get("water_temp_c", 0))
-        humidity = float(last.get("humidity_pct", 0))
+        # asegurar columnas numéricas
+        for c in ["flow_lpm", "water_temp_c", "humidity_pct", "level_pct"]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
 
-        # calcular litros del último intervalo (si no existe)
-        litros = float(last.get("litros_intervalo", 0))
+        # 3) Aproximar litros del último intervalo si no viene pre-calculado
+        #    Usa flujo si existe, si no, deriva de level_pct con un volumen estimado
+        df["dt_min"] = df["ts"].diff().dt.total_seconds().div(60).fillna(0)
+        df["dt_min"] = df["dt_min"].clip(lower=0, upper=60)
 
-        prediction = predict_next_consumption(flow, temp, humidity, litros)
+        if "flow_lpm" in df.columns and df["flow_lpm"].notna().any():
+            df["litros_intervalo"] = df["flow_lpm"].fillna(0) * df["dt_min"]
+        else:
+            V_TINACO = 3000.0  # litros estimados del tinaco
+            df["litros_intervalo"] = (-(df["level_pct"].diff().fillna(0))/100.0) * V_TINACO
+            df["litros_intervalo"] = df["litros_intervalo"].clip(lower=0)
+
+        # 4) Tomar la ventana reciente (3 muestras)
+        last = df.tail(3)
+        flow     = float(last["flow_lpm"].fillna(0).mean()) if "flow_lpm" in df.columns else 0.0
+        temp     = float(last["water_temp_c"].fillna(0).mean()) if "water_temp_c" in df.columns else 0.0
+        humidity = float(last["humidity_pct"].fillna(0).mean()) if "humidity_pct" in df.columns else 0.0
+        last_liters = float(last["litros_intervalo"].iloc[-1])
+
+        # 5) Predicción con TFLite
+        pred_l = predict_next_consumption(flow, temp, humidity, last_liters)
+
+        ctx = {
+            "prediction": f"{pred_l:.2f}",
+            "units": "L"
+        }
+        return render(request, "render/predict.html", ctx)
 
     except Exception as e:
-        prediction = f"Error: {e}"
-
-    return render(request, "render/predict.html", {"prediction": prediction})
+        # Mensaje claro en la vista
+        return render(request, "render/predict.html", {
+            "prediction": f"Error: {e}",
+            "units": "L"
+        })
