@@ -5,7 +5,7 @@ import requests
 from django.core.paginator import Paginator
 from django.shortcuts import render
 import pandas as pd
-from .ml.ml_utils import predict_next_consumption_from_df  
+from render.ml.ml_utils import predict_next_consumption  
 
 API_BASE = "https://iottinaco.onrender.com"
 
@@ -36,21 +36,23 @@ def _iso_to_dt(s: str):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 def predict_view(request):
-    prediction = None
     try:
-        url = "https://iottinaco.onrender.com/readings/all"
-        data = requests.get(url).json()
+        # Obtener los últimos datos reales
+        data = requests.get("https://iottinaco.onrender.com/readings?limit=1").json()
 
-        df = pd.DataFrame(data)
+        if not isinstance(data, list) or len(data) == 0:
+            raise ValueError("La API no devolvió datos válidos")
 
-        cols = ["ts", "flow_lpm", "water_temp_c", "humidity_pct"]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = 0
+        last = data[0]
 
-        df = df.tail(3)
+        flow = float(last.get("flow_lpm", 0))
+        temp = float(last.get("water_temp_c", 0))
+        humidity = float(last.get("humidity_pct", 0))
 
-        prediction = predict_next_consumption_from_df(df)
+        # calcular litros del último intervalo (si no existe)
+        litros = float(last.get("litros_intervalo", 0))
+
+        prediction = predict_next_consumption(flow, temp, humidity, litros)
 
     except Exception as e:
         prediction = f"Error: {e}"
