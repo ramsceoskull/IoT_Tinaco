@@ -16,8 +16,8 @@ def index(request):
 		data = []
 		print(f"Error fetching data: {e}")
 
-	# Paginación: 10 registros por página
-	paginator = Paginator(data, 10)
+	# Paginación: 15 registros por página
+	paginator = Paginator(data, 15)
 	page_number = request.GET.get("page")
 	page_obj = paginator.get_page(page_number)
 
